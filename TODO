@@ -1,7 +1,5 @@
 List of changes and fixes TODO:
 
-- Configurations(port number, sleep times, etc) into an INI-file.
-
 - Instead of forcing MFD-parts of the texture to client, let the client choose the texture area.
 
 - Instead of opening and closing shared memory everytime the texture is read, open it when server starts and close it when server closes.
