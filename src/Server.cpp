@@ -17,7 +17,7 @@ Server::~Server(void)
 
 
 
-bool Server::Start()
+bool Server::Start( const char *port )
 {
 	int iResult;
 
@@ -40,7 +40,7 @@ bool Server::Start()
     hints.ai_flags = AI_PASSIVE;
 
     // Resolve the server address and port
-    iResult = getaddrinfo( "192.168.2.2", "45001", &hints, &result );
+    iResult = getaddrinfo( NULL, port, &hints, &result );
     if ( iResult != 0 )
 	{
         printf("getaddrinfo failed with error: %d\n", iResult);

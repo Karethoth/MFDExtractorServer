@@ -16,7 +16,7 @@ class Server
 	Server( void );
 	~Server( void );
 
-	bool Start();
+	bool Start( const char *port );
 	bool Update();
 	bool SendTexture( std::vector<PIXDIFF> *texture );
 	bool SendDiffVector( std::vector<PIXDIFF> *diff );
