@@ -22,6 +22,16 @@ typedef struct
 
 
 
+typedef struct
+{
+	WORD x;
+	WORD y;
+	WORD w;
+	WORD h;
+} AREA;
+
+
+
 class ImageCache
 {
   private:
