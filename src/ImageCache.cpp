@@ -33,7 +33,7 @@ int ImageCache::Update()
 		textureData   == NULL )
 	{
 		if( !OpenMemory() )
-			return 1;
+			return -1;
 	}
 	
 	// A hack to get straight to the texture data.

@@ -8,10 +8,10 @@ Client::Client( SOCKET sockfd, ImageCache *imageCache )
 
 	mode = REQUEST;
 
-	area.x = 750;
-	area.y = 290;
-	area.w = 450;
-	area.h = 910;
+	area.x = 0;
+	area.y = 0;
+	area.w = 1200;
+	area.h = 1200;
 }
 
 
@@ -57,6 +57,13 @@ bool Client::HandleRead()
 	if( n > 0 )
 	{
 		printf( "Bytes received: %d\n", n );
+		if( n < 10 )
+			return true;
+
+		area.x = (buffer[1] << 8) | (buffer[2] & 0xff);
+		area.y = (buffer[3] << 8) | (buffer[4] & 0xff);
+		area.w = (buffer[5] << 8) | (buffer[6] & 0xff);
+		area.h = (buffer[7] << 8) | (buffer[8] & 0xff);
 	}
 	else if( n == 0 )
 	{

@@ -76,7 +76,12 @@ int _tmain( int argc, _TCHAR* argv[] )
 	/* Das loop */
 	while( 1 )
 	{
-		ic.Update();
+		if( ic.Update() == -1 )
+		{
+			printf( "\nPlease, start the simulator.\n" );
+			printf( "If you have already started it, you haven't enabled shared textures from the configuration file.\n\n" );
+			Sleep( 1000 );
+		}
 		serv.Update();
 	}
 
