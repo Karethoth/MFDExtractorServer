@@ -55,9 +55,12 @@ int _tmain( int argc, _TCHAR* argv[] )
 	printf( "Configuration loaded.\n" );
 
 
+	/* Define the variable for ImageCache */
+	ImageCache ic;
+
 
 	/* Start the server */
-	Server serv;
+	Server serv( &ic );
 	
 	if( !serv.Start( ini["PORT"].c_str() ) )
 	{
@@ -66,43 +69,16 @@ int _tmain( int argc, _TCHAR* argv[] )
 	}
 
 
-
-	/* Define the variable for ImageCache */
-	ImageCache ic;
-
-
-
 	/* Grab the SLEEP from the ini to a variable. */
 	size_t sleepDelay = atoi( ini["SLEEP"].c_str() );
-
 
 
 	/* Das loop */
 	while( 1 )
 	{
-		if( serv.Update() )
-		{
-			int diffCount = ic.Update();
-
-			// Calculate which is the most efficient way to send the data.
-			if( diffCount*7 >= ic.GetImage()->size()*3 || serv.buffer[0] == 'I' )
-			{
-				// Send the whole image
-				serv.SendTexture( ic.GetImage() );
-			}
-			else
-			{
-				// Send only the updated parts
-				while( ic.Update() >= 0 && serv.SendDiffVector( ic.GetDiff() ) )
-				{
-					Sleep( sleepDelay );
-				}
-			}
-		}
-
-		Sleep( 100 );
+		ic.Update();
+		serv.Update();
 	}
 
-	getc( stdin );
 	return 0;
 }

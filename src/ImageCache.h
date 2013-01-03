@@ -42,14 +42,17 @@ class ImageCache
 	HANDLE hMapFileData;
 
   public:
-	  ImageCache();
-	  ~ImageCache();
+	ImageCache();
+	~ImageCache();
 
-	  int Update();
+	int Update();
 	  
-	  std::vector<PIXDIFF>* GetImage()
-	  { return cache; }
+	std::vector<PIXDIFF>* GetImage()
+	{ return cache; }
 
-	  std::vector<PIXDIFF>* GetDiff()
-	  { return &diff; }
+	std::vector<PIXDIFF>* GetDiff()
+	{ return &diff; }
+	  
+	std::vector<PIXDIFF*> *GetImage( AREA &area );
+	std::vector<PIXDIFF*> *GetDiff( AREA &area );
 };

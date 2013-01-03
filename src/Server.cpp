@@ -3,16 +3,46 @@
 
 
 
-Server::Server(void)
+Server::Server( ImageCache *imageCache )
 {
+	this->imageCache = imageCache;
 	listenSocket = INVALID_SOCKET;
-	clientSocket = INVALID_SOCKET;
 }
 
 
 
-Server::~Server(void)
+Server::~Server( void )
 {
+}
+
+
+
+bool Server::SetupFDSets()
+{
+	FD_ZERO( &readSet );
+    FD_ZERO( &writeSet );
+    FD_ZERO( &exceptionSet );
+
+	if( listenSocket != INVALID_SOCKET )
+	{
+		FD_SET( listenSocket, &readSet );
+        FD_SET( listenSocket, &exceptionSet );
+    }
+	else
+	{
+		return false;
+	}
+
+    // Add client connections
+    std::vector<Client*>::iterator it = clientList.begin();
+	for( it = clientList.begin(); it != clientList.end(); ++it )
+	{
+		FD_SET( (*it)->GetSocket(), &readSet );
+        FD_SET( (*it)->GetSocket(), &writeSet );
+		FD_SET( (*it)->GetSocket(), &exceptionSet );
+	}
+
+	return true;
 }
 
 
@@ -26,11 +56,11 @@ bool Server::Start( const char *port )
 
     
     // Initialize Winsock
-    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    iResult = WSAStartup( MAKEWORD(2,2), &wsaData );
     if (iResult != 0)
 	{
         printf("WSAStartup failed with error: %d\n", iResult);
-        return 1;
+        return false;
     }
 
     ZeroMemory( &hints, sizeof(hints) );
@@ -43,19 +73,19 @@ bool Server::Start( const char *port )
     iResult = getaddrinfo( NULL, port, &hints, &result );
     if ( iResult != 0 )
 	{
-        printf("getaddrinfo failed with error: %d\n", iResult);
+        printf( "getaddrinfo failed with error: %d\n", iResult );
         WSACleanup();
-        return 1;
+        return false;
     }
 
     // Create a SOCKET for connecting to server
     listenSocket = socket( result->ai_family, result->ai_socktype, result->ai_protocol );
     if( listenSocket == INVALID_SOCKET )
 	{
-        printf("socket failed with error: %ld\n", WSAGetLastError());
+        printf( "socket failed with error: %ld\n", WSAGetLastError() );
         freeaddrinfo( result );
         WSACleanup();
-        return 1;
+        return false;
     }
 
     // Setup the TCP listening socket
@@ -66,10 +96,17 @@ bool Server::Start( const char *port )
         freeaddrinfo( result );
         closesocket( listenSocket );
         WSACleanup();
-        return 1;
+        return false;
     }
 
     freeaddrinfo( result );
+
+	u_long noBlock = 1;
+	if( ioctlsocket( listenSocket, FIONBIO, &noBlock ) == SOCKET_ERROR )
+	{
+		printf("ioctlsocket() failed with error %d\n", WSAGetLastError());
+		return false;
+	}
 
     iResult = listen( listenSocket, 1 );
     if( iResult == SOCKET_ERROR )
@@ -77,8 +114,9 @@ bool Server::Start( const char *port )
         printf("listen failed with error: %d\n", WSAGetLastError());
         closesocket( listenSocket );
         WSACleanup();
-        return 1;
+        return false;
     }
+
 	return true;
 }
 
@@ -86,108 +124,50 @@ bool Server::Start( const char *port )
 
 bool Server::Update()
 {
-	while( clientSocket == INVALID_SOCKET )
+	SetupFDSets();
+	select( 0, &readSet, &writeSet, &exceptionSet, 0 );
+
+	/* Check for a new connection */
+	if( FD_ISSET( listenSocket, &readSet ) )
 	{
-		printf( "Waiting for connection..\n" );
-		// Accept a client socket
-		clientSocket = accept( listenSocket, NULL, NULL );
-		if( clientSocket == INVALID_SOCKET )
+		SOCKET newConnection = accept( listenSocket, NULL, NULL );
+		if( newConnection != INVALID_SOCKET)
 		{
-			printf( "accept failed with error: %d\n", WSAGetLastError() );
-			return false;
+			printf( "Client connected.\n" );
+
+			Client *newClient = new Client( newConnection, imageCache );
+			clientList.push_back( newClient );
+			
+			// Mark the socket as non-blocking, for safety.
+			u_long noBlock = 1;
+			ioctlsocket( newConnection, FIONBIO, &noBlock );
 		}
-		printf( "Client connected!\n" );
+		else
+		{
+            if( WSAGetLastError() != WSAEWOULDBLOCK )
+			{
+				printf( "accept failed with error: %d. The listening socket is pretty much dead.\n", WSAGetLastError() );
+				return false;
+			}
+		}
 	}
 
-	int n = recv( clientSocket, buffer, 255, 0 );
-    if( n > 0 )
+
+	/* Check the clients */
+	std::vector<Client*>::iterator it;
+	for( it = clientList.begin(); it != clientList.end(); )
 	{
-        printf( "Bytes received: %d\n", n );
-    }
-    else if( n == 0 )
-	{
-        printf("Client closed connection.\n");
-		closesocket( clientSocket );
-		clientSocket = INVALID_SOCKET;
-		return false;
+		if( (*it)->GetSocket() == INVALID_SOCKET )
+		{
+			delete *it;
+			it = clientList.erase( it );
+			continue;
+		}
+
+		(*it)->Update( readSet, writeSet, exceptionSet );
+
+		++it;
 	}
-	else
-	{
-        printf( "recv failed with error: %d\n", WSAGetLastError() );
-        closesocket( clientSocket );
-		clientSocket = INVALID_SOCKET;
-        return false;
-    }
-	return true;
-}
-
-
-
-bool Server::SendTexture( std::vector<PIXDIFF> *texture )
-{
-	int size = texture->size();
-
-	std::vector<char> message;
-	message.push_back( 'I' );
-	message.push_back( size>>24 );
-	message.push_back( size>>16 );
-	message.push_back( size>>8 );
-	message.push_back( size );
-	message.push_back( ':' );
-
-	std::vector<PIXDIFF>::iterator it;
-	for( it = texture->begin(); it != texture->end(); ++it )
-	{
-		message.push_back( (*it).color.r );
-		message.push_back( (*it).color.g );
-		message.push_back( (*it).color.b );
-	}
-
-    int n = send( clientSocket, &message[0], message.size(), 0 );
-    if( n == SOCKET_ERROR)
-	{
-        printf("send failed with error: %d\n", WSAGetLastError());
-        closesocket( clientSocket );
-		clientSocket = INVALID_SOCKET;
-        return false;
-    }
-
-	return true;
-}
-
-
-
-bool Server::SendDiffVector( std::vector<PIXDIFF> *diff )
-{
-	int size = diff->size();
-
-	std::vector<char> message;
-	message.push_back( 'D' );
-	message.push_back( size>>24 );
-	message.push_back( size>>16 );
-	message.push_back( size>>8 );
-	message.push_back( size );
-	message.push_back( ':' );
-
-	std::vector<PIXDIFF>::iterator it;
-	for( it = diff->begin(); it != diff->end(); ++it )
-	{
-		message.push_back( (*it).x>>8 );
-		message.push_back( (*it).x );
-		message.push_back( (*it).y>>8 );
-		message.push_back( (*it).y );
-		message.push_back( (*it).color.r );
-		message.push_back( (*it).color.g );
-		message.push_back( (*it).color.b );
-	}
-    int n = send( clientSocket, &message[0], message.size(), 0 );
-    if( n == SOCKET_ERROR)
-	{
-        printf("send failed with error: %d\n", WSAGetLastError());
-        closesocket( clientSocket );
-		clientSocket = INVALID_SOCKET;
-        return false;
-    }
 
 	return true;
 }

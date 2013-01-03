@@ -131,7 +131,6 @@ int ImageCache::Update()
 	{
 		for( it = tmp->begin(), cit = cache->begin(); it != tmp->end(); ++it, ++cit )
 		{
-			if( (*it).x >= 750 && (*it).y >= 290 )
 			if( (*it).color.r != (*cit).color.r ||
 				(*it).color.g != (*cit).color.g ||
 				(*it).color.b != (*cit).color.b )
@@ -166,4 +165,42 @@ int ImageCache::Update()
 	CloseHandle( hMapFileHeader );
 
 	return diff.size();
+}
+
+
+
+std::vector<PIXDIFF*> *ImageCache::GetDiff( AREA &area )
+{
+	std::vector<PIXDIFF*> *tmpDiff = new std::vector<PIXDIFF*>();
+	std::vector<PIXDIFF>::iterator it;
+
+	for( it = diff.begin(); it != diff.end(); ++it )
+	{
+		if( (*it).x >= area.x && (*it).x < (area.x + area.w) &&
+			(*it).y >= area.y && (*it).y < (area.y + area.h) )
+		{
+			tmpDiff->push_back( &(*it) );
+		}
+	}
+
+	return tmpDiff;
+}
+
+
+
+std::vector<PIXDIFF*> *ImageCache::GetImage( AREA &area )
+{
+	std::vector<PIXDIFF*> *tmpImage = new std::vector<PIXDIFF*>();
+	std::vector<PIXDIFF>::iterator it;
+
+	for( it = cache->begin(); it != cache->end(); ++it )
+	{
+		if( (*it).x >= area.x && (*it).x < (area.x + area.w) &&
+			(*it).y >= area.y && (*it).y < (area.y + area.h) )
+		{
+			tmpImage->push_back( &(*it) );
+		}
+	}
+
+	return tmpImage;
 }
