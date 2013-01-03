@@ -6,9 +6,6 @@ List of changes and fixes TODO:
   (If opening the memory fails(due to the fact that it's not available) every time Update is called, it should check if the area is open
    and if it isn't, it should try to open it)
 
-- Support for multiple clients.
-  (some people may want to display stuff on multiple computers)
-
 - Client should be able to change its area when it wants to. Support for this.
 
 - Client should be able to change its "mode". Support for this.
