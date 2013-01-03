@@ -2,6 +2,7 @@
 #define _WINSOCKAPI_
 #include <Windows.h>
 #include <vector>
+#include "DDS.h"
 
 
 typedef struct
@@ -41,9 +42,16 @@ class ImageCache
 	HANDLE hMapFileHeader;
 	HANDLE hMapFileData;
 
+	DDS_HEADER *textureHeader;
+	BYTE       *textureData;
+
+  protected:
+	bool OpenMemory();
+
   public:
 	ImageCache();
 	~ImageCache();
+
 
 	int Update();
 	  

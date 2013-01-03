@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "ImageCache.h"
-#include "DDS.h"
 
 
 TCHAR sharedMemoryAreaName[] = TEXT( "FalconTexturesSharedMemoryArea" );
@@ -9,6 +8,8 @@ TCHAR sharedMemoryAreaName[] = TEXT( "FalconTexturesSharedMemoryArea" );
 ImageCache::ImageCache()
 {
 	cache = new std::vector<PIXDIFF>();
+	textureHeader = NULL;
+	textureData   = NULL;
 }
 
 
@@ -24,76 +25,17 @@ ImageCache::~ImageCache()
 
 int ImageCache::Update()
 {
-	DDS_HEADER *textureHeader;
-	BYTE       *textureData;
-
 	diff.clear();
+
+	// Check if we haven't opened connection to
+	// the shared memory yet.
+	if( textureHeader == NULL ||
+		textureData   == NULL )
+	{
+		if( !OpenMemory() )
+			return 1;
+	}
 	
-	hMapFileHeader = OpenFileMapping(
-					FILE_MAP_ALL_ACCESS,
-					FALSE,
-					sharedMemoryAreaName
-				);               // name of mapping object
-	if( hMapFileHeader == NULL )
-	{
-		_tprintf( TEXT("Could not open file mapping object (%d).\n"),
-				GetLastError() );
-		return 1;
-	}
-
-	hMapFileData = OpenFileMapping(
-					FILE_MAP_ALL_ACCESS,
-					FALSE,
-					sharedMemoryAreaName
-				);               // name of mapping object
-	if( hMapFileData == NULL )
-	{
-		_tprintf( TEXT("Could not open file mapping object (%d).\n"),
-				GetLastError() );
-		return 1;
-	}
-
-	/* READ THE HEADER */
-	textureHeader = (DDS_HEADER*)MapViewOfFile( hMapFileHeader,
-												FILE_MAP_ALL_ACCESS,
-												0,
-												0,
-												40
-											);
-	if( textureHeader == NULL )
-	{
-		_tprintf( TEXT("Couldn't fetch the header! (%d).\n"),
-				GetLastError() );
-
-		CloseHandle( hMapFileHeader );
-		CloseHandle( hMapFileData );
-		return 2;
-	}
-
-	// Calculate the size of the data.
-	size_t textureDataSize = DDS_CalculateImageDataSize( textureHeader );
-
-	/* READ THE DATA */
-	textureData = (BYTE*)MapViewOfFile( hMapFileData,
-												FILE_MAP_ALL_ACCESS,
-												0,
-												0,
-												40 + textureDataSize
-											);
-
-	if( textureData == NULL )
-	{
-		_tprintf( TEXT("Couldn't fetch the texture! (%d).\n"),
-				GetLastError() );
-		getc(stdin);
-		CloseHandle( textureData );
-
-		UnmapViewOfFile( textureHeader );
-		CloseHandle( hMapFileData );
-		CloseHandle( hMapFileHeader );
-		return 3;
-	}
-
 	// A hack to get straight to the texture data.
 	textureData += 128; // HOX, if weird data, change to 40
 
@@ -158,13 +100,85 @@ int ImageCache::Update()
 	textureData -= 128;
 
 	// Unload and close stuff
-	UnmapViewOfFile( textureData );
-	UnmapViewOfFile( textureHeader );
+	//UnmapViewOfFile( textureData );
+	//UnmapViewOfFile( textureHeader );
 	
-	CloseHandle( hMapFileData );
-	CloseHandle( hMapFileHeader );
+	//CloseHandle( hMapFileData );
+	//CloseHandle( hMapFileHeader );
 
 	return diff.size();
+}
+
+
+
+bool ImageCache::OpenMemory()
+{
+	hMapFileHeader = OpenFileMapping(
+					FILE_MAP_ALL_ACCESS,
+					FALSE,
+					sharedMemoryAreaName
+				);
+
+	if( hMapFileHeader == NULL )
+	{
+		_tprintf( TEXT("Could not open file mapping object (%d).\n"),
+				GetLastError() );
+		return false;
+	}
+
+	hMapFileData = OpenFileMapping(
+					FILE_MAP_ALL_ACCESS,
+					FALSE,
+					sharedMemoryAreaName
+				);               // name of mapping object
+	if( hMapFileData == NULL )
+	{
+		_tprintf( TEXT("Could not open file mapping object (%d).\n"),
+				GetLastError() );
+		return false;
+	}
+
+	/* READ THE HEADER */
+	textureHeader = (DDS_HEADER*)MapViewOfFile( hMapFileHeader,
+												FILE_MAP_ALL_ACCESS,
+												0,
+												0,
+												40
+											);
+	if( textureHeader == NULL )
+	{
+		_tprintf( TEXT("Couldn't fetch the header! (%d).\n"),
+				GetLastError() );
+
+		CloseHandle( hMapFileHeader );
+		CloseHandle( hMapFileData );
+		return false;
+	}
+
+	// Calculate the size of the data.
+	size_t textureDataSize = DDS_CalculateImageDataSize( textureHeader );
+
+	/* READ THE DATA */
+	textureData = (BYTE*)MapViewOfFile( hMapFileData,
+												FILE_MAP_ALL_ACCESS,
+												0,
+												0,
+												40 + textureDataSize
+											);
+
+	if( textureData == NULL )
+	{
+		_tprintf( TEXT("Couldn't fetch the texture! (%d).\n"),
+				GetLastError() );
+		getc(stdin);
+		CloseHandle( textureData );
+
+		UnmapViewOfFile( textureHeader );
+		CloseHandle( hMapFileData );
+		CloseHandle( hMapFileHeader );
+		return false;
+	}
+	return true;
 }
 
 
