@@ -1,14 +1,5 @@
 List of changes and fixes TODO:
 
-- Instead of forcing MFD-parts of the texture to client, let the client choose the texture area.
-
-- Client should be able to change its "mode". Support for this.
-  (Request mode    - Client sends a request package to the server when it wants data.
-   Continuous mode - Server sends data when it's able. It doesn't wait for client to ask it.)
-
-- The BMP-stuff needs to be revised. It isn't necessary, but it may be helpful for debuggin.
-  (To remove or not to..)
-
 - README needs to get updated.
   - A general guide to get started(compiling, configuration, etc.)
   - List of texture areas for different things. MFDs, HUD, RWR, DED...
