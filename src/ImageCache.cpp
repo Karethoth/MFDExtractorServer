@@ -7,7 +7,11 @@ TCHAR sharedMemoryAreaName[] = TEXT( "FalconTexturesSharedMemoryArea" );
 
 ImageCache::ImageCache()
 {
-	cache = new std::vector<PIXDIFF>();
+	// Set up and allocate the vectors
+	cache      = new std::vector<PIXDIFF>(1200*1200);
+	oldCache   = new std::vector<PIXDIFF>(1200*1200);
+	diff       = new std::vector<PIXDIFF>(1200*1200+1); // +1 for the magic value~
+
 	textureHeader = NULL;
 	textureData   = NULL;
 }
@@ -18,15 +22,18 @@ ImageCache::~ImageCache()
 {
 	cache->clear();
 	delete cache;
-	diff.clear();
+
+	oldCache->clear();
+	delete oldCache;
+
+	diff->clear();
+	delete diff;
 }
 
 
 
 int ImageCache::Update()
 {
-	diff.clear();
-
 	// Check if we haven't opened connection to
 	// the shared memory yet.
 	if( textureHeader == NULL ||
@@ -35,12 +42,19 @@ int ImageCache::Update()
 		if( !OpenMemory() )
 			return -1;
 	}
+
+	// Swap the oldCache and cache.
+	// The oldCache will be overwritten by new data.
+	std::vector<PIXDIFF> *swapCache = oldCache;
+	oldCache = cache;
+	cache = swapCache;
+	swapCache = NULL;
 	
 	// A hack to get straight to the texture data.
 	textureData += 128; // HOX, if weird data, change to 40
 
-	// Move the texture to a temporary vector
-	std::vector<PIXDIFF> *tmp = new std::vector<PIXDIFF>();
+	// Write the texture over the texture in the cache vector
+	std::vector<PIXDIFF>::iterator tmp = cache->begin();
 
 	unsigned short y = 0;
 	unsigned short x = 0;
@@ -51,50 +65,43 @@ int ImageCache::Update()
 
 		for( x=0; x < 1200; ++x )
 		{
-			PIXDIFF p = {
-				x, y,
-				{
-						*(textureData+rowOffset+x*4),
-				        *(textureData+rowOffset+x*4+1),
-						*(textureData+rowOffset+x*4+2) 
-				} };
-
-			tmp->push_back( p );
+			(*tmp).x = x;
+			(*tmp).y = y;
+			(*tmp).color.r = *(textureData+rowOffset+x*4);
+			(*tmp).color.g = *(textureData+rowOffset+x*4+1);
+			(*tmp).color.b = *(textureData+rowOffset+x*4+2);
+			++tmp;
 		}
 		++y;
 	};
 
-
-	// Find differences and push them to diff.
+	// Find differences and use them to overwrite old differences in the diff.
 	std::vector<PIXDIFF>::iterator it;
 	std::vector<PIXDIFF>::iterator cit;
+	std::vector<PIXDIFF>::iterator dit;
+
+	int diffCounter=0;
 	
-	if( cache->size() == tmp->size() )
+	for( it = oldCache->begin(), cit = cache->begin(), dit = diff->begin();
+		 it != oldCache->end();
+		 ++it, ++cit  )
 	{
-		for( it = tmp->begin(), cit = cache->begin(); it != tmp->end(); ++it, ++cit )
+		if( (*it).color.r != (*cit).color.r ||
+			(*it).color.g != (*cit).color.g ||
+			(*it).color.b != (*cit).color.b )
 		{
-			if( (*it).color.r != (*cit).color.r ||
-				(*it).color.g != (*cit).color.g ||
-				(*it).color.b != (*cit).color.b )
-			{
-				diff.push_back( *it );
-			}
-		}
-	}
-	else
-	{
-		for( it = tmp->begin(); it != tmp->end(); ++it )
-		{			
-			diff.push_back( *it );
+			(*dit).x = (*cit).x;
+			(*dit).y = (*cit).y;
+			(*dit).color.r = (*cit).color.r;
+			(*dit).color.g = (*cit).color.g;
+			(*dit).color.b = (*cit).color.b;
+			++diffCounter;
+			++dit;
 		}
 	}
 
-
-	// Replace the old texture with the new one.
-	cache->clear();
-	delete cache;
-	cache = tmp;
-
+	// Insert the magic value:
+	(*dit).x = 0xffff;
 
 	// Return the pointer to what it was originally.
 	textureData -= 128;
@@ -106,7 +113,8 @@ int ImageCache::Update()
 	//CloseHandle( hMapFileData );
 	//CloseHandle( hMapFileHeader );
 
-	return diff.size();
+	// Return the count of changes we got
+	return diffCounter;
 }
 
 
@@ -183,38 +191,66 @@ bool ImageCache::OpenMemory()
 
 
 
-std::vector<PIXDIFF*> *ImageCache::GetDiff( AREA &area )
+int ImageCache::GetDiff( AREA &area, std::vector<PIXDIFF> &dest )
 {
-	std::vector<PIXDIFF*> *tmpDiff = new std::vector<PIXDIFF*>();
-	std::vector<PIXDIFF>::iterator it;
-
-	for( it = diff.begin(); it != diff.end(); ++it )
+	if( area.w == 0 ||
+		area.h == 0 )
 	{
+		dest.begin()->x = 0xffff;
+		return 0;
+	}
+
+	int diffCount = 0;
+
+	std::vector<PIXDIFF>::iterator it;
+	std::vector<PIXDIFF>::iterator dit;
+
+	for( it = diff->begin(), dit = dest.begin(); it != diff->end(); ++it )
+	{
+		if( (*it).x == 0xffff )
+		{
+			break;
+		}
 		if( (*it).x >= area.x && (*it).x < (area.x + area.w) &&
 			(*it).y >= area.y && (*it).y < (area.y + area.h) )
 		{
-			tmpDiff->push_back( &(*it) );
+			(*dit).x = (*it).x;
+			(*dit).y = (*it).y;
+			(*dit).color.r = (*it).color.r;
+			(*dit).color.g = (*it).color.g;
+			(*dit).color.b = (*it).color.b;
+			++dit;
+			++diffCount;
 		}
 	}
+	(*dit).x = 0xffff;
 
-	return tmpDiff;
+	return diffCount;
 }
 
 
 
-std::vector<PIXDIFF*> *ImageCache::GetImage( AREA &area )
+int ImageCache::GetImage( AREA &area, std::vector<PIXDIFF> &dest  )
 {
-	std::vector<PIXDIFF*> *tmpImage = new std::vector<PIXDIFF*>();
 	std::vector<PIXDIFF>::iterator it;
+	std::vector<PIXDIFF>::iterator dit;
 
-	for( it = cache->begin(); it != cache->end(); ++it )
+	int counter=0;
+
+	for( it = cache->begin(), dit = dest.begin(); it != cache->end(); ++it )
 	{
 		if( (*it).x >= area.x && (*it).x < (area.x + area.w) &&
 			(*it).y >= area.y && (*it).y < (area.y + area.h) )
 		{
-			tmpImage->push_back( &(*it) );
+			(*dit).x = (*it).x;
+			(*dit).y = (*it).y;
+			(*dit).color.r = (*it).color.r;
+			(*dit).color.g = (*it).color.g;
+			(*dit).color.b = (*it).color.b;
+			++dit;
+			++counter;
 		}
 	}
 
-	return tmpImage;
+	return counter;
 }

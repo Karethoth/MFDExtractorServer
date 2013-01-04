@@ -8,7 +8,8 @@
 enum CLIENT_MODE
 {
 	REQUEST,
-	CONTINUOUS
+	CONTINUOUS,
+	FORCE_TEXTURE
 };
 
 
@@ -20,6 +21,7 @@ private:
 	AREA        area;
 	CLIENT_MODE mode;
 	ImageCache *imageCache;
+	std::vector<PIXDIFF> diff;
 
 	char buffer[255];
 	std::vector<char> writeBuffer;
@@ -31,9 +33,10 @@ protected:
 	bool HandleRead();
 	bool HandleWrite();
 
-	bool SendTexture( std::vector<PIXDIFF*> *texture );
-	bool SendDiffVector( std::vector<PIXDIFF*> *diff );
+	bool SendTexture();
+	bool SendDiffVector( int diffCount );
 
+	void Resize( AREA &a );
 
 public:
 	Client( SOCKET sockfd, ImageCache *imageCache );

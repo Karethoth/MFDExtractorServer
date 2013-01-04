@@ -14,11 +14,20 @@ typedef struct
 
 
 
-typedef struct
+typedef struct sPIXDIFF
 {
 	WORD x;
 	WORD y;
 	PIXEL color;
+
+	sPIXDIFF()
+	{
+		x=0xffff;
+		y=0xffff;
+		color.r = 0x01;
+		color.g = 0x02;
+		color.b = 0x01;
+	}
 } PIXDIFF;
 
 
@@ -37,7 +46,8 @@ class ImageCache
 {
   private:
 	std::vector<PIXDIFF> *cache;
-	std::vector<PIXDIFF> diff;
+	std::vector<PIXDIFF> *oldCache;
+	std::vector<PIXDIFF> *diff;
 
 	HANDLE hMapFileHeader;
 	HANDLE hMapFileData;
@@ -59,8 +69,8 @@ class ImageCache
 	{ return cache; }
 
 	std::vector<PIXDIFF>* GetDiff()
-	{ return &diff; }
+	{ return diff; }
 	  
-	std::vector<PIXDIFF*> *GetImage( AREA &area );
-	std::vector<PIXDIFF*> *GetDiff( AREA &area );
+	int GetImage( AREA &area, std::vector<PIXDIFF> &dest );
+	int GetDiff( AREA &area, std::vector<PIXDIFF> &dest );
 };

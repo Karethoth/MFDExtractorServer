@@ -10,8 +10,15 @@ Client::Client( SOCKET sockfd, ImageCache *imageCache )
 
 	area.x = 0;
 	area.y = 0;
-	area.w = 1200;
-	area.h = 1200;
+	area.w = 0;
+	area.h = 0;
+
+	AREA tmpArea;
+	tmpArea.x = 0;
+	tmpArea.y = 0;
+	tmpArea.w = 1200;
+	tmpArea.h = 1200;
+	Resize( tmpArea );
 }
 
 
@@ -20,6 +27,31 @@ Client::~Client( void )
 {
 	if( sockfd != INVALID_SOCKET )
 		closesocket( sockfd );
+
+	diff.clear();
+}
+
+
+
+void Client::Resize( AREA &a )
+{
+	if( a.x == area.x &&
+		a.y == area.y &&
+		a.w == area.w &&
+		a.h == area.h )
+	{
+		return;
+	}
+
+	mode = FORCE_TEXTURE;
+
+	area.x = a.x;
+	area.y = a.y;
+	area.w = a.w;
+	area.h = a.h;
+
+	diff.clear();
+	diff.resize( a.w * a.h + 1 );
 }
 
 
@@ -60,10 +92,12 @@ bool Client::HandleRead()
 		if( n < 10 )
 			return true;
 
-		area.x = (buffer[1] << 8) | (buffer[2] & 0xff);
-		area.y = (buffer[3] << 8) | (buffer[4] & 0xff);
-		area.w = (buffer[5] << 8) | (buffer[6] & 0xff);
-		area.h = (buffer[7] << 8) | (buffer[8] & 0xff);
+		AREA tmpArea;
+		tmpArea.x = (buffer[1] << 8) | (buffer[2] & 0xff);
+		tmpArea.y = (buffer[3] << 8) | (buffer[4] & 0xff);
+		tmpArea.w = (buffer[5] << 8) | (buffer[6] & 0xff);
+		tmpArea.h = (buffer[7] << 8) | (buffer[8] & 0xff);
+		Resize( tmpArea );
 	}
 	else if( n == 0 )
 	{
@@ -97,107 +131,94 @@ bool Client::HandleWrite()
 	}
 
 	bool retval = true;
-	std::vector<PIXDIFF*> *diff = imageCache->GetDiff( area );
+
+	int diffCount = imageCache->GetDiff( area, diff );
 	
-	if( mode == CONTINUOUS && diff->size()*7 < area.w * area.h * 3 )
+	if( mode == FORCE_TEXTURE )
 	{
-		retval = SendDiffVector( diff );
+		imageCache->GetImage( area, diff );
+		retval = SendTexture();
+		mode = CONTINUOUS;
+	}
+
+	else if( mode == CONTINUOUS && diffCount*7 < area.w * area.h * 3 )
+	{
+		retval = SendDiffVector( diffCount );
 	}
 
 	else if( mode == CONTINUOUS )
 	{
-		retval = SendTexture( imageCache->GetImage( area ) );
+		imageCache->GetImage( area, diff );
+		retval = SendTexture();
 	}
 
 	else if( mode == REQUEST )
 	{
-		retval = SendTexture( imageCache->GetImage( area ) );
+		imageCache->GetImage( area, diff );
+		retval = SendTexture();
 		mode   = CONTINUOUS;
 	}
 	
-	diff->clear();
-	delete diff;
-
 	return retval;
 }
 
 
 
-bool Client::SendTexture( std::vector<PIXDIFF*> *texture )
+bool Client::SendTexture()
 {
-	int size = texture->size();
+	int size = area.w * area.h;
 
-	std::vector<char> message;
-	message.push_back( 'I' );
-	message.push_back( size>>24 );
-	message.push_back( size>>16 );
-	message.push_back( size>>8 );
-	message.push_back( size );
-	message.push_back( ':' );
+	writeBuffer.push_back( 'I' );
+	writeBuffer.push_back( size>>24 );
+	writeBuffer.push_back( size>>16 );
+	writeBuffer.push_back( size>>8 );
+	writeBuffer.push_back( size );
+	writeBuffer.push_back( ':' );
 
-	std::vector<PIXDIFF*>::iterator it;
+	std::vector<PIXDIFF>::iterator it;
 
-	for( it = texture->begin(); it != texture->end(); ++it )
+	for( it = diff.begin(); it != diff.end()-1; ++it )
 	{
-		message.push_back( (*it)->color.r );
-		message.push_back( (*it)->color.g );
-		message.push_back( (*it)->color.b );
+		writeBuffer.push_back( (*it).color.r );
+		writeBuffer.push_back( (*it).color.g );
+		writeBuffer.push_back( (*it).color.b );
 	}
-
-    int n = send( sockfd, &message[0], message.size(), 0 );
-    if( n == SOCKET_ERROR)
-	{
-        if( WSAGetLastError() != WSAEWOULDBLOCK )
-		{
-			printf("send failed with error: %d\n", WSAGetLastError());
-			closesocket( sockfd );
-			sockfd = INVALID_SOCKET;
-			return false;
-		}
-    }
 
 	return true;
 }
 
 
 
-bool Client::SendDiffVector( std::vector<PIXDIFF*> *diff )
+bool Client::SendDiffVector( int diffCount )
 {
-	int size = diff->size();
+	int size = diffCount;
 
-	std::vector<char> message;
-	message.push_back( 'D' );
-	message.push_back( size>>24 );
-	message.push_back( size>>16 );
-	message.push_back( size>>8 );
-	message.push_back( size );
-	message.push_back( ':' );
+	writeBuffer.push_back( 'D' );
+	writeBuffer.push_back( size>>24 );
+	writeBuffer.push_back( size>>16 );
+	writeBuffer.push_back( size>>8 );
+	writeBuffer.push_back( size );
+	writeBuffer.push_back( ':' );
 
-	std::vector<PIXDIFF*>::iterator it;
-	for( it = diff->begin(); it != diff->end(); ++it )
+	std::vector<PIXDIFF>::iterator it;
+	for( it = diff.begin(); it != diff.end(); ++it )
 	{
-		unsigned short tmpX = (*it)->x - area.x;
-		unsigned short tmpY = (*it)->y - area.y;
-
-		message.push_back( tmpX>>8 );
-		message.push_back( tmpX );
-		message.push_back( tmpY>>8 );
-		message.push_back( tmpY );
-		message.push_back( (*it)->color.r );
-		message.push_back( (*it)->color.g );
-		message.push_back( (*it)->color.b );
-	}
-
-    int n = send( sockfd, &message[0], message.size(), 0 );
-    if( n == SOCKET_ERROR)
-	{
-        if( WSAGetLastError() != WSAEWOULDBLOCK )
+		// Check for the magic value
+		if( (*it).x == 0xffff )
 		{
-			printf("send failed with error: %d\n", WSAGetLastError());
-			closesocket( sockfd );
-			sockfd = INVALID_SOCKET;
-			return false;
-   		}
+			break;
+		}
+
+		unsigned short tmpX = (*it).x - area.x;
+		unsigned short tmpY = (*it).y - area.y;
+
+		writeBuffer.push_back( tmpX>>8 );
+		writeBuffer.push_back( tmpX );
+		writeBuffer.push_back( tmpY>>8 );
+		writeBuffer.push_back( tmpY );
+		writeBuffer.push_back( (*it).color.r );
+		writeBuffer.push_back( (*it).color.g );
+		writeBuffer.push_back( (*it).color.b );
 	}
 	return true;
 }

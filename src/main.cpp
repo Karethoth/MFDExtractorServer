@@ -72,17 +72,19 @@ int _tmain( int argc, _TCHAR* argv[] )
 	/* Grab the SLEEP from the ini to a variable. */
 	size_t sleepDelay = atoi( ini["SLEEP"].c_str() );
 
+	int diff;
 
 	/* Das loop */
 	while( 1 )
 	{
-		if( ic.Update() == -1 )
+		if( (diff = ic.Update()) == -1 )
 		{
 			printf( "\nPlease, start the simulator.\n" );
 			printf( "If you have already started it, you haven't enabled shared textures from the configuration file.\n\n" );
 			Sleep( 1000 );
 		}
 		serv.Update();
+		Sleep( sleepDelay );
 	}
 
 	return 0;
