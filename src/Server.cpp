@@ -117,6 +117,8 @@ bool Server::Start( const char *port )
         return false;
     }
 
+	printf( "Listening for connections now.\n" );
+
 	return true;
 }
 

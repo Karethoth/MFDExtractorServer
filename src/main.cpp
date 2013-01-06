@@ -73,16 +73,22 @@ int _tmain( int argc, _TCHAR* argv[] )
 	size_t sleepDelay = atoi( ini["SLEEP"].c_str() );
 
 	int diff;
+	int counter=0;
 
 	/* Das loop */
 	while( 1 )
 	{
-		if( (diff = ic.Update()) == -1 )
+		if( ++counter > 1 )
 		{
-			printf( "\nPlease, start the simulator.\n" );
-			printf( "If you have already started it, you haven't enabled shared textures from the configuration file.\n\n" );
-			Sleep( 1000 );
+			if( (diff = ic.Update()) == -1 )
+			{
+				printf( "\nPlease, start the simulator.\n" );
+				printf( "If you have already started it, you haven't enabled shared textures from the configuration file.\n\n" );
+				Sleep( 1000 );
+			}
+			counter = 0;
 		}
+
 		serv.Update();
 		Sleep( sleepDelay );
 	}

@@ -22,6 +22,11 @@ private:
 	CLIENT_MODE mode;
 	ImageCache *imageCache;
 	std::vector<PIXDIFF> diff;
+	std::vector<PIXEL> rgbBuffer;
+	std::vector<unsigned char> jpegBuffer;
+
+	bool wasLastJPEG;
+	unsigned char threshold;
 
 	char buffer[255];
 	std::vector<char> writeBuffer;
@@ -34,6 +39,7 @@ protected:
 	bool HandleWrite();
 
 	bool SendTexture();
+	bool SendJPEG();
 	bool SendDiffVector( int diffCount );
 
 	void Resize( AREA &a );

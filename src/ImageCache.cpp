@@ -42,7 +42,6 @@ int ImageCache::Update()
 		if( !OpenMemory() )
 			return -1;
 	}
-
 	// Swap the oldCache and cache.
 	// The oldCache will be overwritten by new data.
 	std::vector<PIXDIFF> *swapCache = oldCache;
@@ -247,6 +246,31 @@ int ImageCache::GetImage( AREA &area, std::vector<PIXDIFF> &dest  )
 			(*dit).color.r = (*it).color.r;
 			(*dit).color.g = (*it).color.g;
 			(*dit).color.b = (*it).color.b;
+			++dit;
+			++counter;
+		}
+	}
+
+	return counter;
+}
+
+
+
+int ImageCache::GetRGBData( AREA &area, std::vector<PIXEL> &dest  )
+{
+	std::vector<PIXDIFF>::iterator it;
+	std::vector<PIXEL>::iterator dit;
+
+	int counter=0;
+
+	for( it = cache->begin(), dit = dest.begin(); it != cache->end(); ++it )
+	{
+		if( (*it).x >= area.x && (*it).x < (area.x + area.w) &&
+			(*it).y >= area.y && (*it).y < (area.y + area.h) )
+		{
+			(*dit).r = (*it).color.b;
+			(*dit).g = (*it).color.g;
+			(*dit).b = (*it).color.r;
 			++dit;
 			++counter;
 		}

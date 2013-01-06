@@ -71,6 +71,7 @@ class ImageCache
 	std::vector<PIXDIFF>* GetDiff()
 	{ return diff; }
 	  
+	int GetRGBData( AREA &area, std::vector<PIXEL> &dest );
 	int GetImage( AREA &area, std::vector<PIXDIFF> &dest );
 	int GetDiff( AREA &area, std::vector<PIXDIFF> &dest );
 };

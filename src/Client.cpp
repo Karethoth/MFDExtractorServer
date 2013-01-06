@@ -1,5 +1,6 @@
 #include "Client.h"
-
+#include <jpeglib.h>
+#include <fstream>
 
 Client::Client( SOCKET sockfd, ImageCache *imageCache )
 {
@@ -7,6 +8,7 @@ Client::Client( SOCKET sockfd, ImageCache *imageCache )
 	this->imageCache = imageCache;
 
 	mode = REQUEST;
+	wasLastJPEG = false;
 
 	area.x = 0;
 	area.y = 0;
@@ -14,11 +16,13 @@ Client::Client( SOCKET sockfd, ImageCache *imageCache )
 	area.h = 0;
 
 	AREA tmpArea;
-	tmpArea.x = 0;
-	tmpArea.y = 0;
-	tmpArea.w = 1200;
-	tmpArea.h = 1200;
+	tmpArea.x = 750;
+	tmpArea.y = 290;
+	tmpArea.w = 450;
+	tmpArea.h = 910;
 	Resize( tmpArea );
+
+	jpegBuffer.resize( 100000 );
 }
 
 
@@ -50,8 +54,8 @@ void Client::Resize( AREA &a )
 	area.w = a.w;
 	area.h = a.h;
 
-	diff.clear();
 	diff.resize( a.w * a.h + 1 );
+	rgbBuffer.resize( a.w * a.h );
 }
 
 
@@ -128,28 +132,49 @@ bool Client::HandleWrite()
 		writeBuffer.erase( writeBuffer.begin(), writeBuffer.begin()+n );
 		if( writeBuffer.size() > 0 )
 			return true;
+		return true;
 	}
 
 	bool retval = true;
+	
+	if( wasLastJPEG && threshold-- > 0 )
+	{
+		retval = SendJPEG();
+		return retval;
+	}
 
 	int diffCount = imageCache->GetDiff( area, diff );
+
 	
-	if( mode == FORCE_TEXTURE )
+	if( mode == FORCE_TEXTURE  )
 	{
 		imageCache->GetImage( area, diff );
 		retval = SendTexture();
 		mode = CONTINUOUS;
+		wasLastJPEG = false;
 	}
 
 	else if( mode == CONTINUOUS && diffCount*7 < area.w * area.h * 3 )
 	{
-		retval = SendDiffVector( diffCount );
+		if( wasLastJPEG )
+		{
+			imageCache->GetImage( area, diff );
+			retval = SendTexture();
+			wasLastJPEG = false;
+		}
+		else
+		{
+			retval = SendDiffVector( diffCount );
+		}
 	}
 
 	else if( mode == CONTINUOUS )
 	{
-		imageCache->GetImage( area, diff );
-		retval = SendTexture();
+		//imageCache->GetImage( area, diff );
+		//retval = SendTexture();
+		retval = SendJPEG();
+		wasLastJPEG = true;
+		threshold = 25;
 	}
 
 	else if( mode == REQUEST )
@@ -157,9 +182,59 @@ bool Client::HandleWrite()
 		imageCache->GetImage( area, diff );
 		retval = SendTexture();
 		mode   = CONTINUOUS;
+		wasLastJPEG = false;
 	}
 	
 	return retval;
+}
+
+
+
+bool Client::SendJPEG()
+{
+	imageCache->GetRGBData( area, rgbBuffer );
+
+	struct jpeg_compress_struct cinfo;
+	struct jpeg_error_mgr       jerr;
+ 
+	cinfo.err = jpeg_std_error(&jerr);
+	jpeg_create_compress(&cinfo);
+
+	unsigned char *buffPointer = (unsigned char*)&jpegBuffer[0];
+	unsigned long buffSize = 100000;
+	jpeg_mem_dest( &cinfo, &buffPointer, &buffSize );
+ 
+	cinfo.image_width      = area.w;
+	cinfo.image_height     = area.h;
+	cinfo.input_components = 3;
+	cinfo.in_color_space   = JCS_RGB;
+
+	jpeg_set_defaults( &cinfo );
+	jpeg_set_quality ( &cinfo, 25, true );
+	jpeg_start_compress( &cinfo, true );
+	JSAMPROW row_pointer;
+ 
+	int row_stride = area.w;
+	while( cinfo.next_scanline < cinfo.image_height )
+	{
+		row_pointer = (JSAMPROW) &rgbBuffer[cinfo.next_scanline * row_stride].r;
+		jpeg_write_scanlines( &cinfo, &row_pointer, 1 );
+	}
+
+	jpeg_finish_compress( &cinfo );
+	size_t jpegDataSize = 100000 - cinfo.dest->free_in_buffer;
+	jpeg_destroy_compress( &cinfo );
+
+	writeBuffer.push_back( 'J' );
+	writeBuffer.push_back( jpegDataSize>>24 );
+	writeBuffer.push_back( jpegDataSize>>16 );
+	writeBuffer.push_back( jpegDataSize>>8 );
+	writeBuffer.push_back( jpegDataSize );
+	writeBuffer.push_back( ':' );
+
+	writeBuffer.insert( writeBuffer.end(), &jpegBuffer[0], &jpegBuffer[0]+jpegDataSize );
+
+	return true;
 }
 
 
