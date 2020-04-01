@@ -8,11 +8,11 @@
 
 class Server
 {
-  private:
+private:
 	std::vector<Client*> clientList;
 	WSADATA wsaData;
 
-    SOCKET listenSocket;
+	SOCKET listenSocket;
 
 	FD_SET writeSet;
 	FD_SET readSet;
@@ -21,13 +21,12 @@ class Server
 	ImageCache *imageCache;
 
 
-  protected:
+protected:
 	bool SetupFDSets();
 
 
-  public:
+public:
 	Server( ImageCache *imageCache );
-	~Server( void );
 
 	bool Start( const char *port );
 	bool Update();

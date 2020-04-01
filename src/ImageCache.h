@@ -44,7 +44,7 @@ typedef struct
 
 class ImageCache
 {
-  private:
+private:
 	std::vector<PIXDIFF> *cache;
 	std::vector<PIXDIFF> *oldCache;
 	std::vector<PIXDIFF> *diff;
@@ -55,10 +55,10 @@ class ImageCache
 	DDS_HEADER *textureHeader;
 	BYTE       *textureData;
 
-  protected:
+protected:
 	bool OpenMemory();
 
-  public:
+public:
 	ImageCache();
 	~ImageCache();
 

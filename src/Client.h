@@ -30,8 +30,6 @@ private:
 
 	char buffer[255];
 	std::vector<char> writeBuffer;
-	
-	//std::vector<char> buffer;
 
 
 protected:

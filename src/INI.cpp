@@ -5,13 +5,6 @@
 #include <algorithm>
 
 
-INI::~INI()
-{
-	pairs.clear();
-}
-
-
-
 bool INI::Load( std::string filepath )
 {
 	std::ifstream inp( filepath, std::ios::in );

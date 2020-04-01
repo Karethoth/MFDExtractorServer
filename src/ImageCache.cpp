@@ -8,9 +8,10 @@ TCHAR sharedMemoryAreaName[] = TEXT( "FalconTexturesSharedMemoryArea" );
 ImageCache::ImageCache()
 {
 	// Set up and allocate the vectors
+	// Post C++11 comment: - No reason for pointers, just using std::array would work a treat
 	cache      = new std::vector<PIXDIFF>(1200*1200);
 	oldCache   = new std::vector<PIXDIFF>(1200*1200);
-	diff       = new std::vector<PIXDIFF>(1200*1200+1); // +1 for the magic value~
+	diff       = new std::vector<PIXDIFF>(1200*1200+1); // +1 for the magic value
 
 	textureHeader = NULL;
 	textureData   = NULL;
@@ -20,14 +21,23 @@ ImageCache::ImageCache()
 
 ImageCache::~ImageCache()
 {
-	cache->clear();
-	delete cache;
+	if( cache )
+	{
+		cache->clear();
+		delete cache;
+	}
 
-	oldCache->clear();
-	delete oldCache;
+	if( oldCache )
+	{
+		oldCache->clear();
+		delete oldCache;
+	}
 
-	diff->clear();
-	delete diff;
+	if( diff )
+	{
+		diff->clear();
+		delete diff;
+	}
 }
 
 
@@ -40,7 +50,9 @@ int ImageCache::Update()
 		textureData   == NULL )
 	{
 		if( !OpenMemory() )
+		{
 			return -1;
+		}
 	}
 	// Swap the oldCache and cache.
 	// The oldCache will be overwritten by new data.
@@ -50,7 +62,7 @@ int ImageCache::Update()
 	swapCache = NULL;
 	
 	// A hack to get straight to the texture data.
-	textureData += 128; // HOX, if weird data, change to 40
+	textureData += 128; // HOX: if data doesn't seem right, change to 40
 
 	// Write the texture over the texture in the cache vector
 	std::vector<PIXDIFF>::iterator tmp = cache->begin();
@@ -106,11 +118,11 @@ int ImageCache::Update()
 	textureData -= 128;
 
 	// Unload and close stuff
-	//UnmapViewOfFile( textureData );
-	//UnmapViewOfFile( textureHeader );
+	UnmapViewOfFile( textureData );
+	UnmapViewOfFile( textureHeader );
 	
-	//CloseHandle( hMapFileData );
-	//CloseHandle( hMapFileHeader );
+	CloseHandle( hMapFileData );
+	CloseHandle( hMapFileHeader );
 
 	// Return the count of changes we got
 	return diffCounter;

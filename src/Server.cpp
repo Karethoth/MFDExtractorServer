@@ -11,12 +11,6 @@ Server::Server( ImageCache *imageCache )
 
 
 
-Server::~Server( void )
-{
-}
-
-
-
 bool Server::SetupFDSets()
 {
 	FD_ZERO( &readSet );
